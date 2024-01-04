@@ -2,56 +2,89 @@
     require 'vendor/autoload.php';
 
     use GuzzleHttp\Client;
+    use GuzzleHttp\Cookie\CookieJar;
     use Sunra\PhpSimple\HtmlDomParser;
     use PhpOffice\PhpSpreadsheet\Spreadsheet;
-    use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+    use PhpOffice\PhpSpreadsheet\Writer\Csv;
 
-// Отримання URL з командного рядка
-    if ($argc < 2) {
-        die("Usage: php parse_shafa.php <url>\n");
+    // Отримання URL з командного рядка
+    if (isset($argc) && $argc < 2) {
+        die("Usage: php par.php <url>\n");
     }
 
-    $url = $argv[1];
+    $url = isset($argv[1]) ? $argv[1] : ''; // Встановлюємо значення $url, якщо доступний другий аргумент
 
-// Виклик функції для парсингу сайту та збереження результатів в Excel
-    parseAndSaveToExcel($url);
+// Виклик функції для парсингу сайту та збереження результатів в CSV
+    parseAndSaveToCsv($url);
 
-    function parseAndSaveToExcel($url) {
+    function parseAndSaveToCsv($url)
+    {
+        // Створення об'єкта CookieJar для зберігання cookies
+        $cookieJar = new CookieJar();
+
         // Створення клієнта Guzzle
-        $client = new Client();
+        $client = new Client(['cookies' => $cookieJar]);
 
-        // Виконання HTTP-запиту
-        $response = $client->request('GET', $url);
+        try {
+            // Виконання HTTP-запиту
+            $response = $client->request('GET', $url);
 
-        // Отримання HTML-вмісту сторінки
-        $html = $response->getBody()->getContents();
+            // Перевірка статусу відповіді
+            if ($response->getStatusCode() !== 200) {
+                throw new Exception('Error: ' . $response->getStatusCode());
+            }
 
-        // Парсинг HTML за допомогою SimpleHTMLDom
-        $dom = HtmlDomParser::str_get_html($html);
+            // Отримання HTML-вмісту сторінки
+            $html = $response->getBody()->getContents();
 
-        // Ваш код для парсингу конкретних елементів сторінки
+            // Парсинг HTML за допомогою SimpleHTMLDom
+            $dom = HtmlDomParser::str_get_html($html);
 
-        // Приклад: отримання заголовка сторінки
-        $pageTitle = $dom->find('title', 0)->innertext;
+            // Парсинг назви товару
+            $productName = $dom->find('.CnMTkDcKcdyrztQsbqaj', 0)->innertext;
 
-        // Закриття ресурсів
-        $dom->clear();
-        unset($dom);
+            // Парсинг ціни товару
+            $productPrice = $dom->find('.D8o9s7KcxqtQ7bd2ka_W', 0)->innertext;
 
-        // Створення об'єкта Spreadsheet
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
+            // Парсинг опису товару
+            $productDescription = $dom->find('.product-description-selector', 0)->innertext;
 
-        // Додавання даних до аркуша Excel
-        $sheet->setCellValue('A1', 'Page Title');
-        $sheet->setCellValue('B1', $pageTitle);
+            // Парсинг URL фотографії товару
+            $productImage = $dom->find('.WKtFn6qxBj5SbHTbZQJK', 0)->src;
 
-        // Додайте інші дані, які ви бажаєте записати
+            // Приклад: отримання заголовка сторінки
+//        $pageTitle = $dom->find('title', 0)->innertext;
 
-        // Збереження файлу Excel
-        $excelFileName = 'shafa.xlsx';
-        $writer = new Xlsx($spreadsheet);
-        $writer->save($excelFileName);
+            // Закриття ресурсів
+            $dom->clear();
+            unset($dom);
 
-        echo "Data saved to $excelFileName\n";
+            // Створення об'єкта Spreadsheet
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+
+            // Додавання даних до аркуша CSV
+//        $sheet->setCellValue('A1', 'Page Title');
+//        $sheet->setCellValue('B1', $pageTitle);
+            $sheet->setCellValue('A1', 'Product Name');
+            $sheet->setCellValue('B1', 'Price');
+            $sheet->setCellValue('C1', 'Description');
+            $sheet->setCellValue('D1', 'Image URL');
+            $sheet->setCellValue('A2', $productName);
+            $sheet->setCellValue('B2', $productPrice);
+            $sheet->setCellValue('C2', $productDescription);
+            $sheet->setCellValue('D2', $productImage);
+
+            // Додайте інші дані, які ви бажаєте записати
+
+            // Збереження файлу CSV
+            $csvFileName = 'shafa.csv';
+            $writer = new Csv($spreadsheet);
+            $writer->save($csvFileName);
+
+            echo "Data saved to $csvFileName\n";
+        } catch (Exception $e) {
+            echo 'Caught exception: ', $e->getMessage(), "\n";
+        }
     }
+
